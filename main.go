@@ -10,7 +10,7 @@ import (
 )
 
 type Result struct {
-	err error
+	err  error
 	path string
 }
 
