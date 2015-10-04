@@ -6,13 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 )
 
-func ProcessFile(path string) error {
-	return nil
+type Result struct {
+	err error
+	path string
 }
 
-func ProcessDir(path string) error {
+func processDir(path string, jobs chan string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -25,48 +27,64 @@ func ProcessDir(path string) error {
 	for _, f := range list {
 		p := filepath.Join(path, f.Name())
 		if !f.IsDir() {
-			err = ProcessFile(p)
-			if nil != err {
-				return err
-			}
+			jobs <- p
 			continue
 		}
-		err = ProcessDir(p)
+		err = processDir(p, jobs)
 		if nil != err {
 			return err
 		}
-		fmt.Println(p)
 	}
 	return nil
 }
 
-func work(in chan string, out chan int) {
-	for s := range c {
-		job <- c
-		out <- job
+func work(jobs chan string, res chan Result, wg *sync.WaitGroup) {
+	for j := range jobs {
+		r := Result{nil, j}
+		res <- r
 	}
+	wg.Done()
 }
 
-func createWorkers(n int, in chan string, out chan int ) {
-	for i := 0; i < n; i++ {
-		go work(in, out)
+func produceJobs(dirpath string, jobs chan string, res chan Result) {
+	err := processDir(dirpath, jobs)
+	if err != nil {
+		res <- Result{err, ""}
 	}
+	close(jobs)
+}
+
+func waitForWorkers(wg *sync.WaitGroup, res chan Result) {
+	wg.Wait()
+	close(res)
+}
+
+func produceResults(dirpath string) <-chan Result {
+	res := make(chan Result)
+	jobs := make(chan string)
+	n := runtime.NumCPU()
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go work(jobs, res, &wg)
+	}
+	go waitForWorkers(&wg, res)
+	go produceJobs(dirpath, jobs, res)
+	return res
 }
 
 func main() {
 	flag.Parse()
-	dirpath := flag.Arg(0) if "" == dirpath {
+	dirpath := flag.Arg(0)
+	if "" == dirpath {
 		fmt.Fprintln(os.Stderr, "Arg 0 (dirpath) missing.")
 		os.Exit(1)
 	}
-	jobs := make(chan string)
-	results := make(chan int)
-	numWorkers := runtime.NumCPU()
-	createWorkers(numWorkers, jobs, results)
-	err := ProcessDir(dirpath, jobs)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: ", err)
-		os.Exit(1)
+	res := produceResults(dirpath)
+	for r := range res {
+		if r.err != nil {
+			fmt.Fprintln(os.Stderr, r.err)
+			break
+		}
 	}
-	for res := range
 }
