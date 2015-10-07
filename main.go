@@ -1,17 +1,22 @@
 package main
 
 import (
+	"crypto/sha1"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 )
 
 type Result struct {
-	err  error
-	path string
+	Path string
+	Sum  []byte
+	Size int64
+	Err  error
 }
 
 func processDir(path string, jobs chan string) error {
@@ -27,20 +32,38 @@ func processDir(path string, jobs chan string) error {
 	for _, f := range list {
 		p := filepath.Join(path, f.Name())
 		if !f.IsDir() {
-			jobs <- p
-			continue
-		}
-		err = processDir(p, jobs)
-		if nil != err {
-			return err
+			if f.Mode().IsRegular() {
+				jobs <- p
+			}
+		} else {
+			err = processDir(p, jobs)
+			if nil != err {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func work(jobs chan string, res chan Result, wg *sync.WaitGroup) {
-	for j := range jobs {
-		r := Result{nil, j}
+func calcSha1(path string) (sum []byte, written int64, err error) {
+	var f *os.File
+	f, err = os.Open(path)
+	if nil != err {
+		return
+	}
+	h := sha1.New()
+	written, err = io.Copy(h, f)
+	if nil != err {
+		return
+	}
+	sum = h.Sum(nil)
+	return
+}
+
+func doSomeJobs(jobs chan string, res chan Result, wg *sync.WaitGroup) {
+	for path := range jobs {
+		sum, size, err := calcSha1(path)
+		r := Result{path, sum, size, err}
 		res <- r
 	}
 	wg.Done()
@@ -49,7 +72,7 @@ func work(jobs chan string, res chan Result, wg *sync.WaitGroup) {
 func produceJobs(dirpath string, jobs chan string, res chan Result) {
 	err := processDir(dirpath, jobs)
 	if err != nil {
-		res <- Result{err, ""}
+		res <- Result{"", nil, 0, err}
 	}
 	close(jobs)
 }
@@ -60,13 +83,13 @@ func waitForWorkers(wg *sync.WaitGroup, res chan Result) {
 }
 
 func produceResults(dirpath string) <-chan Result {
+	n := runtime.NumCPU()
 	res := make(chan Result)
 	jobs := make(chan string)
-	n := runtime.NumCPU()
 	var wg sync.WaitGroup
 	wg.Add(n)
 	for i := 0; i < n; i++ {
-		go work(jobs, res, &wg)
+		go doSomeJobs(jobs, res, &wg)
 	}
 	go waitForWorkers(&wg, res)
 	go produceJobs(dirpath, jobs, res)
@@ -81,10 +104,31 @@ func main() {
 		os.Exit(1)
 	}
 	res := produceResults(dirpath)
+	ta := time.Now()
+	files := 0
+	i := 0
+	var MBpsTotal float64 = 0
+	var bytes int64 = 0
 	for r := range res {
-		if r.err != nil {
-			fmt.Fprintln(os.Stderr, r.err)
+		bytes += r.Size
+		files++
+		if r.Err != nil {
+			fmt.Fprintln(os.Stderr, r.Err)
 			break
 		}
+		tb := time.Now()
+		s := tb.Sub(ta).Seconds()
+		if s > 1.0 {
+			i++
+			bytesPerSec := float64(bytes) / s
+			MBps := bytesPerSec / 1024 / 1024
+			MBpsTotal += (MBps - MBpsTotal) / float64(i)
+			fmt.Printf("MB/s: %f\tfiles: %d", MBps, files)
+			fmt.Printf("\tMB/s (total): %f\n", MBpsTotal)
+			ta = tb
+			bytes = 0
+			files = 0
+		}
+		//fmt.Printf("%x\t%d\t%s\n", r.Sum, r.Size, r.Path)
 	}
 }
