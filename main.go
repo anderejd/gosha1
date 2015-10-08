@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,6 +20,35 @@ type Result struct {
 	Sum  []byte
 	Size int64
 	Err  error
+}
+
+type ResultSlice []Result
+
+func (r ResultSlice) Len() int {
+	return len(r)
+}
+
+func (r ResultSlice) Less(i, j int) bool {
+	a := &r[i]
+	b := &r[j]
+	c := bytes.Compare(a.Sum, b.Sum)
+	if -1 == c {
+		return true
+	}
+	if 1 == c {
+		return false
+	}
+	c = strings.Compare(a.Path, b.Path)
+	if -1 == c {
+		return true
+	}
+	return false
+}
+
+func (r ResultSlice) Swap(i, j int) {
+	tmp := r[i]
+	r[i] = r[j]
+	r[j] = tmp
 }
 
 func processDir(path string, jobs chan string) error {
@@ -96,25 +128,50 @@ func produceResults(dirpath string) <-chan Result {
 	return res
 }
 
-func main() {
-	flag.Parse()
-	dirpath := flag.Arg(0)
-	if "" == dirpath {
-		fmt.Fprintln(os.Stderr, "Arg 0 (dirpath) missing.")
-		os.Exit(1)
+func printResultBuffer(basepath string, rs ResultSlice) error {
+	sum := make([]byte, 0)
+	dups := 0
+	collisions := 0
+	var size int64 = 0
+	var dupBytes int64 = 0
+	for _, r := range rs {
+		p, err := filepath.Rel(basepath, r.Path)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stdout, "%x\t%s\n", r.Sum, p)
+		if !bytes.Equal(r.Sum, sum) {
+			sum = r.Sum
+			size = r.Size
+			continue
+		}
+		if r.Size != size {
+			collisions++
+			continue
+		}
+		dups++
+		dupBytes += r.Size
 	}
+	dupMB := float64(dupBytes) / 1024 / 1024
+	fmt.Fprintf(os.Stderr, "Duplicates           : %d\n", dups)
+	fmt.Fprintf(os.Stderr, "Duplicate MB         : %f\n", dupMB)
+	fmt.Fprintf(os.Stderr, "Collisions (at least): %d\n", collisions)
+	return nil
+}
+
+func processRootDir(dirpath string) error {
 	res := produceResults(dirpath)
 	ta := time.Now()
 	files := 0
 	i := 0
 	var MBpsTotal float64 = 0
 	var bytes int64 = 0
+	resBuff := make(ResultSlice, 0)
 	for r := range res {
 		bytes += r.Size
 		files++
 		if r.Err != nil {
-			fmt.Fprintln(os.Stderr, r.Err)
-			break
+			return r.Err
 		}
 		tb := time.Now()
 		s := tb.Sub(ta).Seconds()
@@ -123,12 +180,28 @@ func main() {
 			bytesPerSec := float64(bytes) / s
 			MBps := bytesPerSec / 1024 / 1024
 			MBpsTotal += (MBps - MBpsTotal) / float64(i)
-			fmt.Printf("MB/s: %f\tfiles: %d", MBps, files)
-			fmt.Printf("\tMB/s (total): %f\n", MBpsTotal)
+			fmt.Fprintf(os.Stderr, "MB/s: %f\tfiles: %d", MBps, files)
+			fmt.Fprintf(os.Stderr, "\tMB/s (total): %f\n", MBpsTotal)
 			ta = tb
 			bytes = 0
 			files = 0
 		}
-		//fmt.Printf("%x\t%d\t%s\n", r.Sum, r.Size, r.Path)
+		resBuff = append(resBuff, r)
+	}
+	sort.Sort(resBuff)
+	return printResultBuffer(dirpath, resBuff)
+}
+
+func main() {
+	flag.Parse()
+	dirpath := flag.Arg(0)
+	if "" == dirpath {
+		fmt.Fprintln(os.Stderr, "ERROR: Arg 0 (dirpath) missing.")
+		os.Exit(1)
+	}
+	err := processRootDir(dirpath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "ERROR: ", err)
+		os.Exit(1)
 	}
 }
