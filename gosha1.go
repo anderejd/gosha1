@@ -15,20 +15,20 @@ import (
 	"time"
 )
 
-type Result struct {
+type result struct {
 	Path string
 	Sum  []byte
 	Size int64
 	Err  error
 }
 
-type ResultSlice []Result
+type resultSlice []result
 
-func (r ResultSlice) Len() int {
+func (r resultSlice) Len() int {
 	return len(r)
 }
 
-func (r ResultSlice) Less(i, j int) bool {
+func (r resultSlice) Less(i, j int) bool {
 	a := &r[i]
 	b := &r[j]
 	c := bytes.Compare(a.Sum, b.Sum)
@@ -45,7 +45,7 @@ func (r ResultSlice) Less(i, j int) bool {
 	return false
 }
 
-func (r ResultSlice) Swap(i, j int) {
+func (r resultSlice) Swap(i, j int) {
 	tmp := r[i]
 	r[i] = r[j]
 	r[j] = tmp
@@ -92,31 +92,31 @@ func calcSha1(path string) (sum []byte, written int64, err error) {
 	return
 }
 
-func doSomeJobs(jobs chan string, res chan Result, wg *sync.WaitGroup) {
+func doSomeJobs(jobs chan string, res chan result, wg *sync.WaitGroup) {
 	for path := range jobs {
 		sum, size, err := calcSha1(path)
-		r := Result{path, sum, size, err}
+		r := result{path, sum, size, err}
 		res <- r
 	}
 	wg.Done()
 }
 
-func produceJobs(dirpath string, jobs chan string, res chan Result) {
+func produceJobs(dirpath string, jobs chan string, res chan result) {
 	err := processDir(dirpath, jobs)
 	if err != nil {
-		res <- Result{"", nil, 0, err}
+		res <- result{"", nil, 0, err}
 	}
 	close(jobs)
 }
 
-func waitForWorkers(wg *sync.WaitGroup, res chan Result) {
+func waitForWorkers(wg *sync.WaitGroup, res chan result) {
 	wg.Wait()
 	close(res)
 }
 
-func produceResults(dirpath string) <-chan Result {
+func produceResults(dirpath string) <-chan result {
 	n := runtime.NumCPU()
-	res := make(chan Result)
+	res := make(chan result)
 	jobs := make(chan string)
 	var wg sync.WaitGroup
 	wg.Add(n)
@@ -128,12 +128,12 @@ func produceResults(dirpath string) <-chan Result {
 	return res
 }
 
-func printResultBuffer(basepath string, rs ResultSlice) error {
-	sum := make([]byte, 0)
-	dups := 0
-	collisions := 0
-	var size int64 = 0
-	var dupBytes int64 = 0
+func printResultBuffer(basepath string, rs resultSlice) error {
+	var collisions int
+	var dupBytes int64
+	var dups int
+	var size int64
+	var sum []byte
 	for _, r := range rs {
 		p, err := filepath.Rel(basepath, r.Path)
 		if err != nil {
@@ -164,9 +164,9 @@ func processRootDir(dirpath string) error {
 	ta := time.Now()
 	files := 0
 	i := 0
-	var MBpsTotal float64 = 0
-	var bytes int64 = 0
-	resBuff := make(ResultSlice, 0)
+	var MBpsTotal float64
+	var bytes int64
+	resBuff := make(resultSlice, 0)
 	for r := range res {
 		bytes += r.Size
 		files++
