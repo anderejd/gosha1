@@ -66,10 +66,19 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 		dupBytes += r.Size
 	}
 	dupMB := float64(dupBytes) / 1024 / 1024
-	fmt.Fprintf(os.Stderr, "Duplicates           : %d\n", dups)
-	fmt.Fprintf(os.Stderr, "Duplicate MB         : %f\n", dupMB)
-	fmt.Fprintf(os.Stderr, "Collisions (at least): %d\n", collisions)
+	log("Duplicates           : ", dups)
+	log("Duplicate MB         : ", dupMB)
+	log("Collisions (at least): ", collisions)
 	return nil
+}
+
+func log(a ...interface{}) {
+	fmt.Fprintln(os.Stderr, a...)
+}
+
+func logStatus(MBps float64, files int, MBpsTotal float64) {
+	const format = "MB/s: %.2f\tfiles: %d\tMB/s (total): %.2f\n"
+	fmt.Fprintf(os.Stderr, format, MBps, files, MBpsTotal)
 }
 
 func processRootDir(dirpath string) error {
@@ -93,8 +102,7 @@ func processRootDir(dirpath string) error {
 			bytesPerSec := float64(bytes) / s
 			MBps := bytesPerSec / 1024 / 1024
 			MBpsTotal += (MBps - MBpsTotal) / float64(i)
-			fmt.Fprintf(os.Stderr, "MB/s: %f\tfiles: %d", MBps, files)
-			fmt.Fprintf(os.Stderr, "\tMB/s (total): %f\n", MBpsTotal)
+			logStatus(MBps, files, MBpsTotal)
 			ta = tb
 			bytes = 0
 			files = 0
@@ -109,12 +117,12 @@ func main() {
 	flag.Parse()
 	dirpath := flag.Arg(0)
 	if "" == dirpath {
-		fmt.Fprintln(os.Stderr, "ERROR: Arg 0 (dirpath) missing.")
+		log("ERROR: Arg 0 (dirpath) missing.")
 		os.Exit(1)
 	}
 	err := processRootDir(dirpath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR: ", err)
+		log("ERROR: ", err)
 		os.Exit(1)
 	}
 }
