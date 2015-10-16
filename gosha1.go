@@ -2,27 +2,17 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"flag"
 	"fmt"
-	"io"
+	"github.com/rajder/sha1dir"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
-type result struct {
-	Path string
-	Sum  []byte
-	Size int64
-	Err  error
-}
-
-type resultSlice []result
+type resultSlice []sha1dir.Result
 
 func (r resultSlice) Len() int {
 	return len(r)
@@ -49,83 +39,6 @@ func (r resultSlice) Swap(i, j int) {
 	tmp := r[i]
 	r[i] = r[j]
 	r[j] = tmp
-}
-
-func processDir(path string, jobs chan string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	list, err := f.Readdir(-1)
-	f.Close()
-	if err != nil {
-		return err
-	}
-	for _, f := range list {
-		p := filepath.Join(path, f.Name())
-		if !f.IsDir() {
-			if f.Mode().IsRegular() {
-				jobs <- p
-			}
-		} else {
-			err = processDir(p, jobs)
-			if nil != err {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func calcSha1(path string) (sum []byte, written int64, err error) {
-	var f *os.File
-	f, err = os.Open(path)
-	if nil != err {
-		return
-	}
-	h := sha1.New()
-	written, err = io.Copy(h, f)
-	if nil != err {
-		return
-	}
-	sum = h.Sum(nil)
-	return
-}
-
-func doSomeJobs(jobs chan string, res chan result, wg *sync.WaitGroup) {
-	for path := range jobs {
-		sum, size, err := calcSha1(path)
-		r := result{path, sum, size, err}
-		res <- r
-	}
-	wg.Done()
-}
-
-func produceJobs(dirpath string, jobs chan string, res chan result) {
-	err := processDir(dirpath, jobs)
-	if err != nil {
-		res <- result{"", nil, 0, err}
-	}
-	close(jobs)
-}
-
-func waitForWorkers(wg *sync.WaitGroup, res chan result) {
-	wg.Wait()
-	close(res)
-}
-
-func produceResults(dirpath string) <-chan result {
-	n := runtime.NumCPU()
-	res := make(chan result)
-	jobs := make(chan string)
-	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := 0; i < n; i++ {
-		go doSomeJobs(jobs, res, &wg)
-	}
-	go waitForWorkers(&wg, res)
-	go produceJobs(dirpath, jobs, res)
-	return res
 }
 
 func printResultBuffer(basepath string, rs resultSlice) error {
@@ -160,7 +73,7 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 }
 
 func processRootDir(dirpath string) error {
-	res := produceResults(dirpath)
+	res := sha1dir.ProduceConcurrent(dirpath)
 	ta := time.Now()
 	files := 0
 	i := 0
