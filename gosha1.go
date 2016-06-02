@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/rajder/sha1dir"
 	"os"
-	"path/filepath"
+	//"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -44,15 +44,19 @@ func (r resultSlice) Swap(i, j int) {
 func printResultBuffer(basepath string, rs resultSlice) error {
 	var collisions int
 	var dupBytes int64
+	var totBytes int64
 	var dups int
 	var size int64
 	var sum []byte
 	for _, r := range rs {
+		/*
 		p, err := filepath.Rel(basepath, r.Path)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(os.Stdout, "%x\t%s\n", r.Sum, p)
+		*/
+		totBytes += r.Size;
 		if !bytes.Equal(r.Sum, sum) {
 			sum = r.Sum
 			size = r.Size
@@ -66,8 +70,10 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 		dupBytes += r.Size
 	}
 	dupMB := float64(dupBytes) / 1024 / 1024
+	totMB := float64(totBytes) / 1024 / 1024
 	log("Duplicates           : ", dups)
 	log("Duplicate MB         : ", dupMB)
+	log("Total MB             : ", totMB)
 	log("Collisions (at least): ", collisions)
 	return nil
 }
