@@ -6,5 +6,6 @@ Concurrent SHA-1 checksum calculator for file trees.
 * One goroutine worker per logical core.
 * Prints checksums to stdout.
 * Prints stats to stderr.
+* Returns 0 on success.
 
 
