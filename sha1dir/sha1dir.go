@@ -78,6 +78,7 @@ func calcSha1(path string) (sum []byte, written int64, err error) {
 	if nil != err {
 		return
 	}
+	defer f.Close()
 	h := sha1.New()
 	written, err = io.Copy(h, f)
 	if nil != err {
