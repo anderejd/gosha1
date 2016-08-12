@@ -43,7 +43,7 @@ func isDotPath(p string) bool {
 	return false
 }
 
-func processDir(path string, jobs chan string) error {
+func processDir(path string, jobs chan<- string) error {
 	if isDotPath(path) {
 		return nil
 	}
@@ -88,7 +88,7 @@ func calcSha1(path string) (sum []byte, written int64, err error) {
 	return
 }
 
-func doSomeJobs(jobs chan string, res chan Result, wg *sync.WaitGroup) {
+func doSomeJobs(jobs <-chan string, res chan<- Result, wg *sync.WaitGroup) {
 	for path := range jobs {
 		sum, size, err := calcSha1(path)
 		r := Result{path, sum, size, err}
@@ -97,7 +97,7 @@ func doSomeJobs(jobs chan string, res chan Result, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func produceJobs(dirpath string, jobs chan string, res chan Result) {
+func produceJobs(dirpath string, jobs chan<- string, res chan<- Result) {
 	err := processDir(dirpath, jobs)
 	if err != nil {
 		res <- Result{"", nil, 0, err}
@@ -105,7 +105,7 @@ func produceJobs(dirpath string, jobs chan string, res chan Result) {
 	close(jobs)
 }
 
-func waitForWorkers(wg *sync.WaitGroup, res chan Result) {
+func waitForWorkers(wg *sync.WaitGroup, res chan<- Result) {
 	wg.Wait()
 	close(res)
 }
