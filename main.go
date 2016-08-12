@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/rajder/sha1dir"
+	"github.com/rajder/gosha1/sha1dir"
 	"os"
-	//"path/filepath"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -49,13 +49,11 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 	var size int64
 	var sum []byte
 	for _, r := range rs {
-		/*
 		p, err := filepath.Rel(basepath, r.Path)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(os.Stdout, "%x\t%s\n", r.Sum, p)
-		*/
 		totBytes += r.Size;
 		if !bytes.Equal(r.Sum, sum) {
 			sum = r.Sum
@@ -74,7 +72,7 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 	log("Duplicates           : ", dups)
 	log("Duplicate MB         : ", dupMB)
 	log("Total MB             : ", totMB)
-	log("Collisions (at least): ", collisions)
+	//log("Collisions (at least): ", collisions)
 	return nil
 }
 
