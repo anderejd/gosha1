@@ -54,7 +54,7 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 			return err
 		}
 		fmt.Fprintf(os.Stdout, "%x\t%s\n", r.Sum, p)
-		totBytes += r.Size;
+		totBytes += r.Size
 		if !bytes.Equal(r.Sum, sum) {
 			sum = r.Sum
 			size = r.Size
