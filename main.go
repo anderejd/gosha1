@@ -123,7 +123,7 @@ func produceConcurrent(dirpath string) <-chan result {
 			res <- result{path, sum, size, err}
 		}
 	}
-	gogroup.Go(runtime.NumCPU(), work, func(){close(res)})
+	gogroup.Go(runtime.NumCPU(), work, func() { close(res) })
 	go produceJobs(dirpath, jobs, res)
 	return res
 }

@@ -7,7 +7,7 @@ import "sync"
 
 /**
  * Starts a group of goroutines and calls done when all of them are done.
- * 
+ *
  * @param numWorkers  Number of goroutines to start.
  * @param work        The function to start as goroutine(s).
  * @param done        The function to call when all workers are done.
@@ -26,4 +26,3 @@ func Go(numWorkers int, work, done func()) {
 		done()
 	}()
 }
-
