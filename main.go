@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/rajder/gosha1/sha1dir"
+	"github.com/anderejd/gosha1/sha1dir"
 	"os"
 	"path/filepath"
 	"sort"
