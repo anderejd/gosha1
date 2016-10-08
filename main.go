@@ -48,7 +48,6 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 	var dupBytes int64
 	var totBytes int64
 	var dups int
-	var size int64
 	var sum []byte
 	for _, r := range rs {
 		p, err := filepath.Rel(basepath, r.Path)
@@ -59,7 +58,6 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 		totBytes += r.Size
 		if !bytes.Equal(r.Sum, sum) {
 			sum = r.Sum
-			size = r.Size
 			continue
 		}
 		dups++
