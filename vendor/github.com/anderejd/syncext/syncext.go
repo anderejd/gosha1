@@ -1,7 +1,7 @@
 /**
- * GoGroup - A tiny helper for using goroutines with a WaitGroup.
+ * A tiny helper for using goroutines with a WaitGroup.
  */
-package gogroup
+package syncext
 
 import "sync"
 
@@ -12,7 +12,7 @@ import "sync"
  * @param work        The function to start as goroutine(s).
  * @param done        The function to call when all workers are done.
  */
-func Go(numWorkers int, work, done func()) {
+func FanOut(numWorkers int, work, done func()) {
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 	for i := 0; i < numWorkers; i++ {

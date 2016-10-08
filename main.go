@@ -5,7 +5,7 @@ import (
 	"crypto/sha1"
 	"flag"
 	"fmt"
-	"github.com/anderejd/gogroup"
+	"github.com/anderejd/syncext"
 	"io"
 	"os"
 	"path/filepath"
@@ -115,7 +115,7 @@ func produceConcurrent(dirpath string) <-chan result {
 			res <- result{path, sum, size, err}
 		}
 	}
-	gogroup.Go(runtime.NumCPU(), work, func() { close(res) })
+	syncext.FanOut(runtime.NumCPU(), work, func() { close(res) })
 	go produceJobs(dirpath, jobs, res)
 	return res
 }

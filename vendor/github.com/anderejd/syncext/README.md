@@ -1,5 +1,5 @@
-# gogroup
-GoGroup - A tiny helper for using goroutines with a WaitGroup.
+# syncext.FanOut
+A tiny helper for using goroutines with a WaitGroup.
 
 Example usage, fan-out workers, fan-in results:
 ```
@@ -15,7 +15,7 @@ func produceResults() <-chan Result {
 			rs <- transformJobToResult(j)
 		}
 	}
-	gogroup.Go(runtime.NumCPU(), work, func() { close(rs) })
+	syncext.FanOut(runtime.NumCPU(), work, func() { close(rs) })
 	go produceJobs(js)
 	return rs
 }
