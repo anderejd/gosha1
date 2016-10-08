@@ -5,7 +5,7 @@ import (
 	"crypto/sha1"
 	"flag"
 	"fmt"
-	"github.com/anderejd/gosha1/gogroup"
+	"github.com/anderejd/gogroup"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,7 +45,6 @@ func (r resultSlice) Swap(i, j int) {
 }
 
 func printResultBuffer(basepath string, rs resultSlice) error {
-	var collisions int
 	var dupBytes int64
 	var totBytes int64
 	var dups int
@@ -63,19 +62,14 @@ func printResultBuffer(basepath string, rs resultSlice) error {
 			size = r.Size
 			continue
 		}
-		if r.Size != size {
-			collisions++
-			continue
-		}
 		dups++
 		dupBytes += r.Size
 	}
 	dupMB := float64(dupBytes) / 1024 / 1024
 	totMB := float64(totBytes) / 1024 / 1024
-	log("Duplicates           : ", dups)
-	log("Duplicate MB         : ", dupMB)
-	log("Total MB             : ", totMB)
-	//log("Collisions (at least): ", collisions)
+	log("Duplicates   :", dups)
+	log("Duplicate MB :", dupMB)
+	log("Total MB     :", totMB)
 	return nil
 }
 
