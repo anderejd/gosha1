@@ -2,17 +2,20 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"flag"
 	"fmt"
-	"github.com/anderejd/gosha1/sha1dir"
+	"github.com/anderejd/gosha1/gogroup"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 )
 
-type resultSlice []sha1dir.Result
+type resultSlice []result
 
 func (r resultSlice) Len() int {
 	return len(r)
@@ -85,8 +88,93 @@ func logStatus(MBps float64, files int, MBpsTotal float64) {
 	fmt.Fprintf(os.Stderr, format, MBps, files, MBpsTotal)
 }
 
+func calcSha1(path string) (sum []byte, written int64, err error) {
+	var f *os.File
+	f, err = os.Open(path)
+	if nil != err {
+		return
+	}
+	defer f.Close()
+	h := sha1.New()
+	written, err = io.Copy(h, f)
+	if nil != err {
+		return
+	}
+	sum = h.Sum(nil)
+	return
+}
+
+// Result struct for a single file.
+// Err will be nil on success.
+type result struct {
+	Path string
+	Sum  []byte
+	Size int64
+	Err  error
+}
+
+// The returned result channel will close when done.
+func produceConcurrent(dirpath string) <-chan result {
+	res := make(chan result)
+	jobs := make(chan string)
+	work := func() {
+		for path := range jobs {
+			sum, size, err := calcSha1(path)
+			res <- result{path, sum, size, err}
+		}
+	}
+	gogroup.Go(runtime.NumCPU(), work, func(){close(res)})
+	go produceJobs(dirpath, jobs, res)
+	return res
+}
+
+func produceJobs(dirpath string, jobs chan<- string, res chan<- result) {
+	err := processDir(dirpath, jobs)
+	if err != nil {
+		res <- result{"", nil, 0, err}
+	}
+	close(jobs)
+}
+
+func processDir(path string, jobs chan<- string) error {
+	if isDotPath(path) {
+		return nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	list, err := f.Readdir(-1)
+	f.Close()
+	if err != nil {
+		return err
+	}
+	for _, f := range list {
+		p := filepath.Join(path, f.Name())
+		if !f.IsDir() {
+			if f.Mode().IsRegular() {
+				jobs <- p
+			}
+		} else {
+			err = processDir(p, jobs)
+			if nil != err {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func isDotPath(p string) bool {
+	b := filepath.Base(p)
+	if ".." != b && len(b) > 1 && '.' == b[0] {
+		return true
+	}
+	return false
+}
+
 func processRootDir(dirpath string) error {
-	res := sha1dir.ProduceConcurrent(dirpath)
+	res := produceConcurrent(dirpath)
 	ta := time.Now()
 	files := 0
 	i := 0
